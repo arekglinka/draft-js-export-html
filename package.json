@@ -39,7 +39,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/sstur/draft-js-export-html.git"
+    "url": "git+ssh://git@github.com/arekglinka/draft-js-export-html.git"
   },
   "keywords": [
     "draft-js",
@@ -48,7 +48,7 @@
   "author": "sstur@me.com",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/sstur/draft-js-export-html/issues"
+    "url": "https://github.com/arekglinka/draft-js-export-html/issues"
   },
-  "homepage": "https://github.com/sstur/draft-js-export-html#readme"
+  "homepage": "https://github.com/arekglinka/draft-js-export-html#readme"
 }
