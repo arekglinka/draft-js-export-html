@@ -1,5 +1,5 @@
 {
-  "name": "draft-js-export-html",
+  "name": "arekglinka-draft-js-export-html",
   "version": "0.5.0",
   "description": "DraftJS: Export ContentState to HTML",
   "main": "lib/main.js",
@@ -45,7 +45,7 @@
     "draft-js",
     "export-html"
   ],
-  "author": "sstur@me.com",
+  "author": "arekglinka@gmail.com",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/arekglinka/draft-js-export-html/issues"

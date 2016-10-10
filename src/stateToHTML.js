@@ -28,8 +28,9 @@ type RenderConfig = {
 type BlockRenderer = (block: ContentBlock) => ?string;
 type BlockRendererMap = {[blockType: string]: BlockRenderer};
 
+type EntityData = {[key: string]: string | number};
 type EntityGetter = (entityKey: string) => ?EntityInstance;
-type EntityFormatter = (content: string, attrString: string) => ?string;
+type EntityFormatter = (content: string, attrString: string, entityData: EntityData) => ?string;
 type EntityFormatterMap = {[key: string]: EntityFormatter}
 type EntityAttributesRenderer = (entityType: string, entity: EntityInstance) => ?Attributes;
 type EntityAttributesRendererMap = {[key: string]: EntityAttributesRenderer}
@@ -78,9 +79,9 @@ const ENTITY_ATTR_MAP: {[entityType: string]: AttrMap} = {
 };
 
 const ENTITY_FORMATTER_MAP: EntityFormatterMap = {
-  [ENTITY_TYPE.LINK]: (content, attrString) => `<a${attrString}>${content}</a>`,
-  [ENTITY_TYPE.IMAGE]: (content, attrString) => `<img${attrString}/>`,
-  DEFAULT: (content, attrString) => `<span$attrString}>${content}</span>`
+  [ENTITY_TYPE.LINK]: (content, attrString, entityData) => `<a${attrString}>${content}</a>`,
+  [ENTITY_TYPE.IMAGE]: (content, attrString, entityData) => `<img${attrString}/>`,
+  DEFAULT: (content, attrString, entityData) => `<span$attrString}>${content}</span>`
 };
 
 // Map entity data to element attributes.
@@ -372,8 +373,8 @@ class MarkupGenerator {
       let attrs = this.entityAttributesRendererMap.hasOwnProperty(entityType) ? this.entityAttributesRendererMap[entityType](entityType, entity)
           : this.entityAttributesRendererMap.DEFAULT(entityType, entity);
 
-      return this.entityFormatterMap.hasOwnProperty(entityType) ? this.entityFormatterMap[entityType](content, stringifyAttrs(attrs))
-          : this.entityFormatterMap.DEFAULT(content, stringifyAttrs(attrs));
+      return this.entityFormatterMap.hasOwnProperty(entityType) ? this.entityFormatterMap[entityType](content, stringifyAttrs(attrs), entity.getData())
+          : this.entityFormatterMap.DEFAULT(content, stringifyAttrs(attrs), entity.getData());
 
     }).join('');
   }
