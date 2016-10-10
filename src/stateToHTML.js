@@ -28,6 +28,12 @@ type RenderConfig = {
 type BlockRenderer = (block: ContentBlock) => ?string;
 type BlockRendererMap = {[blockType: string]: BlockRenderer};
 
+type EntityGetter = (entityKey: string) => ?EntityInstance;
+type EntityFormatter = (content: string, attrString: string) => ?string;
+type EntityFormatterMap = {[key: string]: EntityFormatter}
+type EntityAttributesRenderer = (entityType: string, entity: EntityInstance) => ?Attributes;
+type EntityAttributesRendererMap = {[key: string]: EntityAttributesRenderer}
+
 type StyleMap = {[styleName: string]: RenderConfig};
 
 type BlockStyleFn = (block: ContentBlock) => ?RenderConfig;
@@ -36,6 +42,9 @@ type Options = {
   inlineStyles?: StyleMap;
   blockRenderers?: BlockRendererMap;
   blockStyleFn?: BlockStyleFn;
+  entityGetter?: EntityGetter;
+  entityFormatterMap?: EntityFormatterMap;
+  entityAttributesRendererMap?: EntityAttributesRendererMap;
 };
 
 const {
@@ -68,38 +77,31 @@ const ENTITY_ATTR_MAP: {[entityType: string]: AttrMap} = {
   [ENTITY_TYPE.IMAGE]: {src: 'src', height: 'height', width: 'width', alt: 'alt', className: 'class'},
 };
 
+const ENTITY_FORMATTER_MAP: EntityFormatterMap = {
+  [ENTITY_TYPE.LINK]: (content, attrString) => `<a${attrString}>${content}</a>`,
+  [ENTITY_TYPE.IMAGE]: (content, attrString) => `<img${attrString}/>`,
+  DEFAULT: (content, attrString) => `<span$attrString}>${content}</span>`
+};
+
 // Map entity data to element attributes.
-const DATA_TO_ATTR = {
-  [ENTITY_TYPE.LINK](entityType: string, entity: EntityInstance): Attributes {
-    let attrMap = ENTITY_ATTR_MAP.hasOwnProperty(entityType) ? ENTITY_ATTR_MAP[entityType] : {};
-    let data = entity.getData();
-    let attrs = {};
-    for (let dataKey of Object.keys(data)) {
-      let dataValue = data[dataKey];
-      if (attrMap.hasOwnProperty(dataKey)) {
-        let attrKey = attrMap[dataKey];
-        attrs[attrKey] = dataValue;
-      } else if (DATA_ATTRIBUTE.test(dataKey)) {
-        attrs[dataKey] = dataValue;
-      }
+function DATA_TO_ATTR(entityAttributesMap: AttrMap): EntityAttributesRendererMap {
+    return {
+        DEFAULT(entityType: string, entity: EntityInstance): Attributes {
+            let attrMap = entityAttributesMap.hasOwnProperty(entityType) ? entityAttributesMap[entityType] : {};
+            let data = entity.getData();
+            let attrs = {};
+            for (let dataKey of Object.keys(data)) {
+                let dataValue = data[dataKey];
+                if (attrMap.hasOwnProperty(dataKey)) {
+                    let attrKey = attrMap[dataKey];
+                    attrs[attrKey] = dataValue;
+                } else if (DATA_ATTRIBUTE.test(dataKey)) {
+                    attrs[dataKey] = dataValue;
+                }
+            }
+            return attrs;
+        }
     }
-    return attrs;
-  },
-  [ENTITY_TYPE.IMAGE](entityType: string, entity: EntityInstance): Attributes {
-    let attrMap = ENTITY_ATTR_MAP.hasOwnProperty(entityType) ? ENTITY_ATTR_MAP[entityType] : {};
-    let data = entity.getData();
-    let attrs = {};
-    for (let dataKey of Object.keys(data)) {
-      let dataValue = data[dataKey];
-      if (attrMap.hasOwnProperty(dataKey)) {
-        let attrKey = attrMap[dataKey];
-        attrs[attrKey] = dataValue;
-      } else if (DATA_ATTRIBUTE.test(dataKey)) {
-        attrs[dataKey] = dataValue;
-      }
-    }
-    return attrs;
-  },
 };
 
 // The reason this returns an array is because a single block might get wrapped
@@ -152,6 +154,10 @@ class MarkupGenerator {
   output: Array<string>;
   totalBlocks: number;
   wrapperTag: ?string;
+  entityGetter: EntityGetter;
+  entityFormatterMap: EntityFormatterMap;
+  entityAttributesMap: AttrMap;
+  entityAttributesRendererMap: EntityAttributesRendererMap;
   // These are related to user-defined options.
   options: Options;
   inlineStyles: StyleMap;
@@ -163,6 +169,21 @@ class MarkupGenerator {
     }
     this.contentState = contentState;
     this.options = options;
+    this.entityGetter = Entity.get;
+    this.entityFormatterMap = ENTITY_FORMATTER_MAP;
+    this.entityAttributesMap = ENTITY_ATTR_MAP;
+    this.entityAttributesRendererMap = DATA_TO_ATTR(this.entityAttributesMap);
+
+    for(let key of ['entityFormatterMap', 'entityAttributesMap', 'entityAttributesRendererMap']){
+        if(this.options.hasOwnProperty(key)) {
+            Object.assign(this[key], options[key]);
+        }
+    }
+
+    if(this.options.hasOwnProperty('entityGetter')) {
+      this.entityGetter = options.entityGetter;
+    }
+
     let [inlineStyles, styleOrder] = combineOrderedStyles(
       options.inlineStyles,
       [DEFAULT_STYLE_MAP, DEFAULT_STYLE_ORDER],
@@ -341,20 +362,19 @@ class MarkupGenerator {
         }
         return content;
       }).join('');
-      let entity = entityKey ? Entity.get(entityKey) : null;
+      let entity = entityKey ? this.entityGetter(entityKey) : null
       // Note: The `toUpperCase` below is for compatability with some libraries that use lower-case for image blocks.
       let entityType = (entity == null) ? null : entity.getType().toUpperCase();
-      if (entityType != null && entityType === ENTITY_TYPE.LINK) {
-        let attrs = DATA_TO_ATTR.hasOwnProperty(entityType) ? DATA_TO_ATTR[entityType](entityType, entity) : null;
-        let attrString = stringifyAttrs(attrs);
-        return `<a${attrString}>${content}</a>`;
-      } else if (entityType != null && entityType === ENTITY_TYPE.IMAGE) {
-        let attrs = DATA_TO_ATTR.hasOwnProperty(entityType) ? DATA_TO_ATTR[entityType](entityType, entity) : null;
-        let attrString = stringifyAttrs(attrs);
-        return `<img${attrString}/>`;
-      } else {
-        return content;
+      if(!(entityType !== null && this.entityFormatterMap.hasOwnProperty(entityType))){
+        return content
       }
+
+      let attrs = this.entityAttributesRendererMap.hasOwnProperty(entityType) ? this.entityAttributesRendererMap[entityType](entityType, entity)
+          : this.entityAttributesRendererMap.DEFAULT(entityType, entity);
+
+      return this.entityFormatterMap.hasOwnProperty(entityType) ? this.entityFormatterMap[entityType](content, stringifyAttrs(attrs))
+          : this.entityFormatterMap.DEFAULT(content, stringifyAttrs(attrs));
+
     }).join('');
   }
 
